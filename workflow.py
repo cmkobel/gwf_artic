@@ -53,35 +53,32 @@ with open(input_file) as input_file_path:
     for i_, line in enumerate(input_file_path):
         if line[0] == "#" or line == "/n":
             continue
-
-        
         
         line = line.strip("\n")
         if line.startswith("path\t"):
             path = line.split("\t")[1]
 
         elif line.startswith("sample\t"):
-            check_n_samples += 1
             line_splitted = line.split("\t")
             
             barcode = line_splitted[1]
-            check_barcode_set.add(barcode)
-            
             sample_name = line_splitted[2]
+            
+            check_n_samples += 1
+            check_barcode_set.add(barcode)
             check_sample_name_set.add(sample_name)
 
-
-            if not line_splitted[1].startswith("NB"):
+            if not barcode.startswith("NB"):
                 raise Exception(f"Barcodes ought to start with 'NB' for sample ({line_splitted[2]}) on line {i_+1} in the input file {input_file}. ")
             samples[line_splitted[1]] = line_splitted[2]
 
-
+# Check that the labels are unique:
 if len(check_barcode_set) != len(check_barcode_set) or len(check_sample_name_set) != check_n_samples:
     raise Exception(f"The number of unique barcodes, and the number of unique sample_names do not match in the input file {input_file}.")
 
+# Debug info
 print("title:   ", title)
 print(" path:    ", path)
-#print(" samples: ", samples)
 
 
 
