@@ -241,10 +241,9 @@ for barcode, sample_name in samples.items():
 
 
 # Collect consensus-files
-# Consider merging this job with pangolin, unless nextclade also needs it.
 gwf.target(sanify('a4_cllect_', title),
         inputs = [f"output/{title}/genome/{sample_name}.consensus.fasta" for sample_name in samples.values()], #[f"output/{title}/guppy_basecaller/pass/barcode{barcode_short}/"],
-        outputs = [f"output/{title}/pangolin/{title}.all.fasta"],
+        outputs = [f"output/{title}/genome/{title}.all.fasta"],
         cores = 1, 
         memory = '1g',
         walltime = '00:10:00') << f"""
@@ -252,9 +251,9 @@ gwf.target(sanify('a4_cllect_', title),
             # {environment_base}
             # conda activate artic-ncov2019
 
-            mkdir -p output/{title}/pangolin
 
-            cat {' '.join([f"output/{title}/genome/{sample_name}.consensus.fasta" for sample_name in samples.values()])} > output/{title}/pangolin/{title}.all.fasta
+
+            cat {' '.join([f"output/{title}/genome/{sample_name}.consensus.fasta" for sample_name in samples.values()])} > output/{title}/genome/{title}.all.fasta
             
             """
 
@@ -264,15 +263,17 @@ gwf.target(sanify('a4_cllect_', title),
 
 # Apply pangolin 
 gwf.target(sanify('a5.1_pgln_', title),
-    inputs = [f"output/{title}/pangolin/{title}.all.fasta"],
+    inputs = [f"output/{title}/genome/{title}.all.fasta"],
     outputs = [f"output/{title}/pangolin/something"],
     cores = 4,
     memory = '8g',
-    walltime = '01:00:00') << f"""
+    walltime = '02:00:00') << f"""
         
         {environment_base}
         conda activate pangolin
 
+
+        mkdir -p output/{title}/pangolin
 
         pangolin -v
         pangolin -pv
@@ -282,7 +283,7 @@ gwf.target(sanify('a5.1_pgln_', title),
         pangolin output/{title}/pangolin/{title}.all.fasta \
             --threads 4 \
             --tempdir /scratch/$SLURM_JOB_ID \
-            --outdir output/{title}/pangolin/pangolin.csv
+            --outdir output/{title}/pangolin/
 
 
 
@@ -291,19 +292,20 @@ gwf.target(sanify('a5.1_pgln_', title),
 
 # Apply nextclade
 gwf.target(sanify('a5.2_nxcl_,', title),
-    inputs = [f"output/{title}/pangolin/{title}.all.fasta"], #[f"output/{title}/{title}.all.fasta"],
+    inputs = [f"output/{title}/genome/{title}.all.fasta"], #[f"output/{title}/{title}.all.fasta"],
     outputs = [], #[f"output/{title}/pangolin/something"],
     cores = 4,
     memory = '8g',
-    walltime = '01:00:00') << f"""
+    walltime = '02:00:00') << f"""
         
-
-
-        # Courtesy of Marc
 
         mkdir -p output/{title}/nextclade
 
-        singularity run --bind ~/seqdata/:/seq docker://neherlab/nextclade:0.7.5 nextclade.js --input-fasta /seq/aarhus.fasta --output-csv /seq/aarhus.csv
+        # Courtesy of Marc
+
+        singularity run --bind output/{title}:/seq docker://neherlab/nextclade:0.7.5 nextclade.js --input-fasta /seq/genome/{title}.all.fasta --output-csv /seq/nextclade/{title}.nextclade.csv
+
+
 
         """
 
