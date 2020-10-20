@@ -101,39 +101,6 @@ gwf.target(sanify('ar1_bsecal_', title),
 
 
 
-        # # 1st try, somehow only calls barcodes 1-12
-        # software/ont-guppy/bin/guppy_basecaller \
-        # --input_path {path} \
-        # --recursive \
-        # --save_path output/{title}/guppy_basecaller \
-        # -q 0 \
-        # --gpu_runners_per_device 32 \
-        # --cpu_threads_per_caller 4 \
-        # --flowcell FLO-MIN106 --kit SQK-LSK109 \
-        # --barcode_kits EXP-NBD104 EXP-NBD114 \
-        # --require_barcodes_both_ends \
-        # --min_score 60.000000 \
-        # --qscore_filtering --min_qscore=7 \
-        # --device "auto" \
-        #  1> output/{title}/guppy_basecaller/pipeline.log 2> output/{title}/guppy_basecaller/pipeline.err 
-
-
-
-        # # 2nd idea, use the call directly from the basement workstation, never tried it.
-        # software/ont-guppy/bin/guppy_basecaller \
-        # --port 5555 \
-        # --num_callers=1 \
-        # --save_path /home/auh-covid19/Desktop/covid19_analysis/COVID19_AUH_13102020/basecalling3 \
-        # --config dna_r9.4.1_450bps_fast.cfg \
-        # --input_path /home/auh-covid19/Desktop/covid19_analysis/COVID19_AUH_13102020/rawdata/20201013_0954_MN34697_FAO27727_4caa086e \
-        # --recursive \
-        # --barcode_kits EXP-NBD104 EXP-NBD114 \
-        # --require_barcodes_both_ends 
-        # --min_score 60.000000 \
-        # --progress_stats_frequency=2 \
-        # 1> output/{title}/guppy_basecaller/guppy_basecaller.out 2> output/{title}/guppy_basecaller/guppy_basecaller.err
-
-
         nvidia-smi > smi.out 2> smi.err
 
 
@@ -210,7 +177,6 @@ for barcode, sample_name in samples.items():
 
             mkdir -p output/{title}/filter
 
-
             artic guppyplex --min-length 400 --max-length 700 --directory output/{title}/guppy_barcoder/barcode{barcode_short} --prefix prefix_{sample_name} --output output/{title}/filter/{sample_name}.fastq
 
 
@@ -251,8 +217,6 @@ gwf.target(sanify('a4_cllect_', title),
             # {environment_base}
             # conda activate artic-ncov2019
 
-
-
             cat {' '.join([f"output/{title}/genome/{sample_name}.consensus.fasta" for sample_name in samples.values()])} > output/{title}/genome/{title}.all.fasta
             
             """
@@ -264,27 +228,20 @@ gwf.target(sanify('a4_cllect_', title),
 # Apply pangolin 
 gwf.target(sanify('a5.1_pgln_', title),
     inputs = [f"output/{title}/genome/{title}.all.fasta"],
-    outputs = [f"output/{title}/pangolin/something"],
-    cores = 4,
+    outputs = [f"output/{title}/{title}.pangolin.csv"],
+    cores = 8,
     memory = '8g',
     walltime = '02:00:00') << f"""
         
-        {environment_base}
-        conda activate pangolin
-
-
         mkdir -p output/{title}/pangolin
 
-        pangolin -v
-        pangolin -pv
-        pangolin -lv
 
+        singularity run --bind output/{title}:/seq \
+            docker://staphb/pangolin:2.0.4 pangolin /seq/genome/{title}.all.fasta \
+                --threads 8 \
+                --outdir /seq
 
-        pangolin output/{title}/pangolin/{title}.all.fasta \
-            --threads 4 \
-            --tempdir /scratch/$SLURM_JOB_ID \
-            --outdir output/{title}/pangolin/
-
+        mv output/{title}/lineage_report.csv output/{title}/{title}.pangolin.csv
 
 
         """
@@ -292,19 +249,15 @@ gwf.target(sanify('a5.1_pgln_', title),
 
 # Apply nextclade
 gwf.target(sanify('a5.2_nxcl_,', title),
-    inputs = [f"output/{title}/genome/{title}.all.fasta"], #[f"output/{title}/{title}.all.fasta"],
-    outputs = [], #[f"output/{title}/pangolin/something"],
+    inputs = [f"output/{title}/genome/{title}.all.fasta"],
+    outputs = [f"output/{title}/{title}.nextclade.csv"],
     cores = 4,
     memory = '8g',
     walltime = '02:00:00') << f"""
-        
-
-        mkdir -p output/{title}/nextclade
 
         # Courtesy of Marc
 
-        singularity run --bind output/{title}:/seq docker://neherlab/nextclade:0.7.5 nextclade.js --input-fasta /seq/genome/{title}.all.fasta --output-csv /seq/nextclade/{title}.nextclade.csv
-
+        singularity run --bind output/{title}:/seq docker://neherlab/nextclade:0.7.5 nextclade.js --input-fasta /seq/genome/{title}.all.fasta --output-csv /seq/{title}.nextclade.csv
 
 
         """
