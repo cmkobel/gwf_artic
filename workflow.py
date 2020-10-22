@@ -19,7 +19,7 @@ titles = {'0': "20200722",
 
 
 # Select title
-title = titles['4']
+title = titles['3']
 
 
 path = ""
@@ -118,6 +118,7 @@ gwf.target(sanify('ar1_bsecal_', title),
             --save_path output/{title}/guppy_basecaller \
             -x auto \
             -r \
+            --qscore_filtering --min_qscore=7 \
             2> output/{title}/guppy_basecaller/std.err 1> output/{title}/guppy_basecaller/std.out
 
 
@@ -146,14 +147,15 @@ gwf.target(sanify('ar2_barcod_', title),
         mkdir -p output/{title}/guppy_barcoder
 
         software/ont-guppy/bin/guppy_barcoder \
-        --require_barcodes_both_ends \
-        -i output/{title}/guppy_basecaller/ \
-        -s output/{title}/guppy_barcoder \
-        --arrangements_files "barcode_arrs_nb12.cfg barcode_arrs_nb24.cfg" \
-        --min_score 60.000000 \
-        --compress_fastq \
-        1> output/{title}/guppy_barcoder/std.out 2> output/{title}/guppy_barcoder/std.err
+            --require_barcodes_both_ends \
+            -i output/{title}/guppy_basecaller/pass \
+            -s output/{title}/guppy_barcoder \
+            --arrangements_files "barcode_arrs_nb12.cfg barcode_arrs_nb24.cfg" \
+            --min_score 60.000000 \
+            --compress_fastq \
+            1> output/{title}/guppy_barcoder/std.out 2> output/{title}/guppy_barcoder/std.err
 
+        # This is an intermediate file, which could be deleted.. 
 
         """
 
@@ -167,7 +169,7 @@ for barcode, sample_name in samples.items():
     # We use a length filter here of between 400 and 700 to remove obviously chimeric reads.
     gwf.target(sanify('ar3_filter_', barcode, '_', title),
         inputs = [f"output/{title}/guppy_barcoder/barcode{barcode_short}"], 
-        outputs = [f"output/{title}/filter/{sample_name}.fastq"], 
+        outputs = [f"output/samples/{sample_name}/filtered/{title}_{barcode}_{sample_name}.fastq"], 
         cores = 2, 
         memory = '8g',
         walltime = '01:00:00') << f"""
@@ -175,9 +177,16 @@ for barcode, sample_name in samples.items():
             {environment_base}
             conda activate artic-ncov2019
 
-            mkdir -p output/{title}/filter
 
-            artic guppyplex --min-length 400 --max-length 700 --directory output/{title}/guppy_barcoder/barcode{barcode_short} --prefix prefix_{sample_name} --output output/{title}/filter/{sample_name}.fastq
+            mkdir -p output/samples/{sample_name}/filtered
+
+            artic guppyplex \
+                --skip-quality-check \
+                --min-length 400 \
+                --max-length 700 \
+                --directory output/{title}/guppy_barcoder/barcode{barcode_short} \
+                --prefix prefix_{sample_name} \
+                --output output/samples/{sample_name}/filtered/{title}_{barcode}_{sample_name}.fastq
 
 
             """
@@ -186,8 +195,8 @@ for barcode, sample_name in samples.items():
     # Run the MinION pipeline
     gwf.target(sanify('ar4_articm_', barcode, '_', title),
             inputs = [path,
-                      f"output/{title}/filter/{sample_name}.fastq"],
-            outputs = [f"output/{title}/genome/{sample_name}.consensus.fasta"], 
+                      f"output/samples/{sample_name}/filtered/{title}_{barcode}_{sample_name}.fastq"],
+            outputs = [f"output/samples/{sample_name}/genome/{sample_name}.consensus.fasta"], 
             cores = 8, 
             memory = '8g',
             walltime = '08:00:00') << f"""
@@ -195,12 +204,19 @@ for barcode, sample_name in samples.items():
                 {environment_base}
                 conda activate artic-ncov2019
 
-                mkdir -p output/{title}/genome
-                cd output/{title}/genome
+                mkdir -p output/samples/{sample_name}/genome
+                cd output/samples/{sample_name}/genome
 
-                artic minion --normalise 200 --threads 8 --scheme-directory ../../../artic-ncov2019/primer_schemes --read-file ../filter/{sample_name}.fastq --fast5-directory ../../../{path} --sequencing-summary ../guppy_basecaller/sequencing_summary.txt nCoV-2019/V3 {sample_name}
-                
-                
+                artic minion \
+                    --normalise 200 \
+                    --threads 8 \
+                    --scheme-directory ../../../../artic-ncov2019/primer_schemes \
+                    --read-file ../filtered/{title}_{barcode}_{sample_name}.fastq \
+                    --fast5-directory ../../../../{path} \
+                    --sequencing-summary ../../../{title}/guppy_basecaller/sequencing_summary.txt \
+                    nCoV-2019/V3 \
+                    {sample_name}
+                          
 
                 """
 
@@ -208,8 +224,8 @@ for barcode, sample_name in samples.items():
 
 # Collect consensus-files
 gwf.target(sanify('a4_cllect_', title),
-        inputs = [f"output/{title}/genome/{sample_name}.consensus.fasta" for sample_name in samples.values()], #[f"output/{title}/guppy_basecaller/pass/barcode{barcode_short}/"],
-        outputs = [f"output/{title}/genome/{title}.all.fasta"],
+        inputs = [f"output/samples/{sample_name}/genome/{sample_name}.consensus.fasta" for sample_name in samples.values()], #[f"output/{title}/guppy_basecaller/pass/barcode{barcode_short}/"],
+        outputs = [f"output/{title}/{title}.all.fasta"],
         cores = 1, 
         memory = '1g',
         walltime = '00:10:00') << f"""
@@ -217,7 +233,7 @@ gwf.target(sanify('a4_cllect_', title),
             # {environment_base}
             # conda activate artic-ncov2019
 
-            cat {' '.join([f"output/{title}/genome/{sample_name}.consensus.fasta" for sample_name in samples.values()])} > output/{title}/genome/{title}.all.fasta
+            cat {' '.join([f"output/samples/{sample_name}/genome/{sample_name}.consensus.fasta" for sample_name in samples.values()])} > output/{title}/{title}.all.fasta
             
             """
 
@@ -227,7 +243,7 @@ gwf.target(sanify('a4_cllect_', title),
 
 # Apply pangolin 
 gwf.target(sanify('a5.1_pgln_', title),
-    inputs = [f"output/{title}/genome/{title}.all.fasta"],
+    inputs = [f"output/{title}/{title}.all.fasta"],
     outputs = [f"output/{title}/{title}.pangolin.csv"],
     cores = 8,
     memory = '8g',
@@ -237,7 +253,7 @@ gwf.target(sanify('a5.1_pgln_', title),
 
 
         singularity run --bind output/{title}:/seq \
-            docker://staphb/pangolin:2.0.4 pangolin /seq/genome/{title}.all.fasta \
+            docker://staphb/pangolin:2.0.4 pangolin /seq/{title}.all.fasta \
                 --threads 8 \
                 --outdir /seq
 
@@ -249,7 +265,7 @@ gwf.target(sanify('a5.1_pgln_', title),
 
 # Apply nextclade
 gwf.target(sanify('a5.2_nxcl_,', title),
-    inputs = [f"output/{title}/genome/{title}.all.fasta"],
+    inputs = [f"output/{title}/{title}.all.fasta"],
     outputs = [f"output/{title}/{title}.nextclade.csv"],
     cores = 4,
     memory = '8g',
@@ -257,7 +273,10 @@ gwf.target(sanify('a5.2_nxcl_,', title),
 
         # Courtesy of Marc
 
-        singularity run --bind output/{title}:/seq docker://neherlab/nextclade:0.7.5 nextclade.js --input-fasta /seq/genome/{title}.all.fasta --output-csv /seq/{title}.nextclade.csv
+        singularity run --bind output/{title}:/seq \
+            docker://neherlab/nextclade:0.7.5 nextclade.js \
+                --input-fasta /seq/{title}.all.fasta \
+                --output-csv /seq/{title}.nextclade.csv
 
 
         """
