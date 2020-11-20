@@ -15,16 +15,20 @@ titles = {'0': "20200722",
           '1': "20200825",
           '2': "20200904",
           '3': "20200914",
-          '4': "20201013"}
+          '4': "20201013",
+          '5': "20201030",
+          '6': "20201104",
+          '7': "20201104_alt"} # I copied over the basecalled data from the basement, and then the #6 job started....
 
 
 # Select title
-title = titles['3']
+title = titles['6']
 
 
+
+# Initialize empty variables
 path = ""
 samples = {}
-
 
 input_file = f"input/{title}.tab"
 
@@ -97,11 +101,11 @@ gwf.target(sanify('ar1_bsecal_', title),
 
         mkdir -p output/{title}/guppy_basecaller/
 
-        cp {input_file} output/{title}/samples.txt
+        cp {input_file} output/{title}/{title}.samples.txt
 
 
 
-        nvidia-smi > smi.out 2> smi.err
+        #nvidia-smi > smi.out 2> smi.err
 
 
         # todo: run the quality-control here.
@@ -249,8 +253,7 @@ gwf.target(sanify('a5.1_pgln_', title),
     memory = '8g',
     walltime = '02:00:00') << f"""
         
-        mkdir -p output/{title}/pangolin
-
+        
 
         singularity run --bind output/{title}:/seq \
             docker://staphb/pangolin:2.0.4 pangolin /seq/{title}.all.fasta \
