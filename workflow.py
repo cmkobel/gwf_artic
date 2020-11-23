@@ -18,11 +18,11 @@ titles = {'0': "20200722",
           '4': "20201013",
           '5': "20201030",
           '6': "20201104",
-          '7': "20201104_alt"} # I copied over the basecalled data from the basement, and then the #6 job started....
+          '7': "20201120"} 
 
 
 # Select title
-title = titles['6']
+title = titles['7']
 
 
 
