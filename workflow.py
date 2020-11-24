@@ -142,7 +142,7 @@ gwf.target(sanify('ar2_barcod_', title),
     outputs = [f"output/{title}/guppy_barcoder/barcode{barcode[2:4]}" for barcode in samples.keys()], 
     cores = 2, 
     memory = '8g',
-    walltime = '01:00:00',
+    walltime = '12:00:00',
     queue = 'gpu') << f"""
     
         # software/ont-guppy/bin/guppy_barcoder --help > guppy_barcoder_help.txt
@@ -283,6 +283,19 @@ gwf.target(sanify('a5.2_nxcl_,', title),
 
 
         """
+
+
+gwf.target(sanify('a6_collect_,', title),
+    inputs = [f"input/{title}.tab",
+              f"output/{title}/{title}.nextclade.csv",
+              f"output/{title}/{title}.pangolin.csv"],
+    outputs = [f"metadata/collected_input.tab"]) << f"""
+        
+        ./collect.sh
+
+    """
+
+
 
 
 print()

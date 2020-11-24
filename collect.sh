@@ -7,7 +7,7 @@ fasta_f="output/collected_genomes.fasta"
 
 
 echo "collecting input ..."
-echo -e "batch\tkey\tvalue\tsample\tmads" > $input_f
+echo -e "batch\tkey\tvalue\tsample\tmads\tct" > $input_f
 for i in input/*.tab;
     do cat $i | awk -v hat=$(basename $i | sed 's/.tab//') '{ print hat "\t" $0 }' >> $input_f
 done
