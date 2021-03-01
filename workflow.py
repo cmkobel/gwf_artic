@@ -1,5 +1,5 @@
 from gwf import *
-
+import json
 
 
 gwf = Workflow(defaults={
@@ -11,18 +11,23 @@ gwf = Workflow(defaults={
 environment_base = """source /home/cmkobel/miniconda3/etc/profile.d/conda.sh"""
 
 
-titles = {'0': "20200722",
-          '1': "20200825",
-          '2': "20200904",
-          '3': "20200914",
-          '4': "20201013",
-          '5': "20201030",
-          '6': "20201104",
-          '7': "20201120"} 
+titles = {"0": "20200722",
+          "1": "20200825",
+          "2": "20200904",
+          "3": "20200914",
+          "4": "20201013",
+          "5": "20201030",
+          "6": "20201104",
+          "7": "20201120",
+          "8": "20201208", 
+          "9": "20201210",
+         "10": "20201216",
+         "11": "20210216",  # kørte i 3 døgn
+         "12": "20210223"}  # kørte i 1 døgn
 
 
 # Select title
-title = titles['7']
+title = titles["11"]
 
 
 
@@ -66,15 +71,15 @@ with open(input_file) as input_file_path:
             line_splitted = line.split("\t")
             
             barcode = line_splitted[1]
-            sample_name = line_splitted[2]
+            sample_name = "n_" + title + "_" + line_splitted[2]
             
             check_n_samples += 1
             check_barcode_set.add(barcode)
-            check_sample_name_set.add(sample_name)
+            check_sample_name_set.add(sample_name) # qnd way to get the batch name into the sample-name. The n signifies that
 
             if not barcode.startswith("NB"):
                 raise Exception(f"Barcodes ought to start with 'NB' for sample ({line_splitted[2]}) on line {i_+1} in the input file {input_file}. ")
-            samples[line_splitted[1]] = line_splitted[2]
+            samples[line_splitted[1]] = sample_name
 
 # Check that the labels are unique:
 if len(check_barcode_set) != len(check_barcode_set) or len(check_sample_name_set) != check_n_samples:
@@ -85,6 +90,7 @@ print("title:   ", title)
 print(" path:    ", path)
 
 
+print(json.dumps(samples, indent = 4))
 
 
 gwf.target(sanify('ar1_bsecal_', title),
@@ -92,7 +98,7 @@ gwf.target(sanify('ar1_bsecal_', title),
     outputs = [f"output/{title}/guppy_basecaller/sequencing_summary.txt"],
     cores = 8,
     memory = '16gb',
-    walltime = '24:00:00',
+    walltime = '2-00:00:00',
     queue = 'gpu', 
     gres = 'gpu:1') << f"""
 
@@ -166,6 +172,9 @@ gwf.target(sanify('ar2_barcod_', title),
 
 for barcode, sample_name in samples.items():
     barcode_short = barcode[2:4]
+
+    # qnd way to have full_names:
+    #sample_name = title + "_n_" + sample_name
 
     print("  " + barcode, barcode_short, sample_name, sep = "\t")
 
@@ -297,7 +306,7 @@ gwf.target(sanify('a6_collect_,', title),
 
 
 
-
+print("///")
 print()
 
 
